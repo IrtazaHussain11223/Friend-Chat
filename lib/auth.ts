@@ -5,7 +5,16 @@ import { ACCESS_COOKIE } from "@/lib/constants";
 const SESSION_VALUE = "granted";
 
 function secret() {
-  return process.env.CHAT_SESSION_SECRET || process.env.CHAT_ACCESS_CODE || "friend-chat-dev-secret";
+  return (
+    process.env.CHAT_SESSION_SECRET ||
+    process.env.CHAT_ACCESS_CODE ||
+    process.env.NEXT_PUBLIC_CHAT_ACCESS_CODE ||
+    "friend-chat-dev-secret"
+  );
+}
+
+export function getAccessCode() {
+  return process.env.CHAT_ACCESS_CODE || process.env.NEXT_PUBLIC_CHAT_ACCESS_CODE;
 }
 
 function sign(value: string) {

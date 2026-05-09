@@ -20,6 +20,20 @@ export default function ChatWindow({ username, onChangeName }: Props) {
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    fetch("/api/messages")
+      .then(async (response) => {
+        if (!response.ok) {
+          const body = (await response.json().catch(() => ({}))) as { error?: string };
+          throw new Error(body.error || "Could not load message history.");
+        }
+
+        return response.json() as Promise<{ messages: Message[] }>;
+      })
+      .then((data) => setMessages(data.messages || []))
+      .catch((historyError: Error) => setError(historyError.message));
+  }, []);
+
+  useEffect(() => {
     const key = process.env.NEXT_PUBLIC_PUSHER_KEY;
     const cluster = process.env.NEXT_PUBLIC_PUSHER_CLUSTER;
 
@@ -40,7 +54,13 @@ export default function ChatWindow({ username, onChangeName }: Props) {
     });
 
     channel.bind(NEW_MESSAGE_EVENT, (message: Message) => {
-      setMessages((prev) => [...prev, message]);
+      setMessages((prev) => {
+        if (prev.some((current) => current.id === message.id)) {
+          return prev;
+        }
+
+        return [...prev, message];
+      });
     });
 
     return () => {
