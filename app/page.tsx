@@ -3,41 +3,41 @@
 import { useEffect, useState } from "react";
 import AccessGate from "@/components/AccessGate";
 import ChatWindow from "@/components/ChatWindow";
+import RoomModal from "@/components/RoomModal";
 import UsernameModal from "@/components/UsernameModal";
 
-type AuthState = "checking" | "locked" | "needs-name" | "ready";
-
-const USERNAME_KEY = "friend-chat-username";
+type AuthState = "checking" | "locked" | "needs-name" | "needs-room" | "ready";
 
 export default function HomePage() {
   const [authState, setAuthState] = useState<AuthState>("checking");
   const [username, setUsername] = useState("");
+  const [roomId, setRoomId] = useState("");
 
   useEffect(() => {
-    const savedUsername = window.localStorage.getItem(USERNAME_KEY) || "";
-    setUsername(savedUsername);
-
-    fetch("/api/access")
-      .then((res) => res.json())
-      .then((data: { authorized?: boolean }) => {
-        if (!data.authorized) {
-          setAuthState("locked");
-          return;
-        }
-
-        setAuthState(savedUsername ? "ready" : "needs-name");
-      })
+    fetch("/api/access", { method: "DELETE" })
+      .then(() => setAuthState("locked"))
       .catch(() => setAuthState("locked"));
   }, []);
 
   const handleAccessGranted = () => {
-    setAuthState(username ? "ready" : "needs-name");
+    setAuthState("needs-name");
   };
 
   const handleUsernameSubmit = (name: string) => {
-    window.localStorage.setItem(USERNAME_KEY, name);
     setUsername(name);
+    setAuthState("needs-room");
+  };
+
+  const handleRoomSubmit = (nextRoomId: string) => {
+    setRoomId(nextRoomId);
     setAuthState("ready");
+  };
+
+  const handleLogout = async () => {
+    await fetch("/api/access", { method: "DELETE" }).catch(() => undefined);
+    setUsername("");
+    setRoomId("");
+    setAuthState("locked");
   };
 
   if (authState === "checking") {
@@ -56,5 +56,17 @@ export default function HomePage() {
     return <UsernameModal onSubmit={handleUsernameSubmit} />;
   }
 
-  return <ChatWindow username={username} onChangeName={() => setAuthState("needs-name")} />;
+  if (authState === "needs-room") {
+    return <RoomModal onSubmit={handleRoomSubmit} />;
+  }
+
+  return (
+    <ChatWindow
+      username={username}
+      roomId={roomId}
+      onChangeName={() => setAuthState("needs-name")}
+      onChangeRoom={() => setAuthState("needs-room")}
+      onLogout={handleLogout}
+    />
+  );
 }

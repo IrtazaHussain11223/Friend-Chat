@@ -5,10 +5,13 @@ A private, mobile-first real-time chat app built with Next.js App Router, TypeSc
 ## Features
 
 - Access-code protected entry
+- Session expires on refresh or logout
+- Logout button
 - Username onboarding
+- Create or join multiple chat rooms
 - Realtime Pusher broadcasts
 - Supabase message persistence
-- Saved chat history on room entry
+- Saved chat history per room
 - Responsive WhatsApp/Discord-style UI
 - Vercel-ready API routes
 
@@ -50,11 +53,12 @@ Never expose `SUPABASE_SERVICE_ROLE_KEY` in client-side code. This project only 
 1. Create a Supabase project.
 2. Open Supabase SQL Editor.
 3. Run the SQL from `database.sql`.
+   - If you already created the old table, run this SQL again. It safely adds the new `room_id` column needed for multiple rooms.
 4. Go to Project Settings -> API.
 5. Copy `Project URL` into `SUPABASE_URL`.
 6. Copy `service_role` key into `SUPABASE_SERVICE_ROLE_KEY`.
 
-The app saves messages through `/api/messages` before broadcasting them with Pusher.
+The app saves messages through `/api/messages` before broadcasting them with Pusher. Each room stores its own messages using the `room_id` column.
 
 ## Pusher Setup
 
@@ -82,6 +86,14 @@ If your current Vercel project only has `NEXT_PUBLIC_CHAT_ACCESS_CODE`, either a
 
 ## Message Flow
 
-Client -> `/api/messages` -> Supabase insert -> Pusher trigger -> connected clients receive `new-message`.
+Client -> `/api/messages` -> Supabase insert with `room_id` -> room-specific Pusher trigger -> connected clients in the same room receive `new-message`.
 
-When a user enters the chat, the client calls `GET /api/messages` and loads the latest saved messages.
+When a user enters a room, the client calls `GET /api/messages?roomId=...` and loads the latest saved messages for that room.
+
+## Session Behavior
+
+Access is intentionally temporary:
+
+- Clicking logout clears the HTTP-only access cookie.
+- Refreshing the page clears the current access session and returns to the passcode screen.
+- Usernames and room choices are kept only in memory for the current session.

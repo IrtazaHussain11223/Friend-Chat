@@ -28,8 +28,22 @@ export async function POST(req: Request) {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
+    path: "/"
+  });
+
+  return response;
+}
+
+export async function DELETE() {
+  const response = NextResponse.json({ authorized: false });
+  response.cookies.set({
+    name: ACCESS_COOKIE,
+    value: "",
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: 60 * 60 * 24 * 30
+    maxAge: 0
   });
 
   return response;

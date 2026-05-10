@@ -3,6 +3,7 @@ import type { Message } from "@/lib/types";
 
 export interface MessageRow {
   id: string;
+  room_id: string;
   username: string;
   text: string;
   created_at: string;
@@ -31,6 +32,7 @@ export function getSupabaseServer() {
 export function mapMessageRow(row: MessageRow): Message {
   return {
     id: row.id,
+    roomId: row.room_id,
     username: row.username,
     text: row.text,
     timestamp: row.created_at

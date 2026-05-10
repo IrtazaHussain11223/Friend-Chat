@@ -1,26 +1,38 @@
 /*"use client";
 
 import { useEffect, useRef, useState } from "react";
-import { MessageCircle, Settings } from "lucide-react";
+import { Hash, LogOut, MessageCircle, Settings } from "lucide-react";
 import Pusher from "pusher-js";
 import MessageBubble from "@/components/MessageBubble";
 import MessageInput from "@/components/MessageInput";
-import { CHAT_CHANNEL, NEW_MESSAGE_EVENT } from "@/lib/constants";
+import { getChatChannel, NEW_MESSAGE_EVENT } from "@/lib/constants";
 import type { Message } from "@/lib/types";
 
 interface Props {
   username: string;
+  roomId: string;
   onChangeName: () => void;
+  onChangeRoom: () => void;
+  onLogout: () => void;
 }
 
-export default function ChatWindow({ username, onChangeName }: Props) {
+export default function ChatWindow({
+  username,
+  roomId,
+  onChangeName,
+  onChangeRoom,
+  onLogout
+}: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [status, setStatus] = useState("Connecting...");
   const [error, setError] = useState("");
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    fetch("/api/messages")
+    setMessages([]);
+    setError("");
+
+    fetch(`/api/messages?roomId=${encodeURIComponent(roomId)}`)
       .then(async (response) => {
         if (!response.ok) {
           const body = (await response.json().catch(() => ({}))) as { error?: string };
@@ -31,7 +43,7 @@ export default function ChatWindow({ username, onChangeName }: Props) {
       })
       .then((data) => setMessages(data.messages || []))
       .catch((historyError: Error) => setError(historyError.message));
-  }, []);
+  }, [roomId]);
 
   useEffect(() => {
     const key = process.env.NEXT_PUBLIC_PUSHER_KEY;
@@ -44,7 +56,8 @@ export default function ChatWindow({ username, onChangeName }: Props) {
     }
 
     const pusher = new Pusher(key, { cluster });
-    const channel = pusher.subscribe(CHAT_CHANNEL);
+    const channelName = getChatChannel(roomId);
+    const channel = pusher.subscribe(channelName);
 
     pusher.connection.bind("connected", () => setStatus("Live"));
     pusher.connection.bind("unavailable", () => setStatus("Reconnecting..."));
@@ -54,6 +67,10 @@ export default function ChatWindow({ username, onChangeName }: Props) {
     });
 
     channel.bind(NEW_MESSAGE_EVENT, (message: Message) => {
+      if (message.roomId !== roomId) {
+        return;
+      }
+
       setMessages((prev) => {
         if (prev.some((current) => current.id === message.id)) {
           return prev;
@@ -65,10 +82,10 @@ export default function ChatWindow({ username, onChangeName }: Props) {
 
     return () => {
       channel.unbind_all();
-      pusher.unsubscribe(CHAT_CHANNEL);
+      pusher.unsubscribe(channelName);
       pusher.disconnect();
     };
-  }, []);
+  }, [roomId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -80,7 +97,7 @@ export default function ChatWindow({ username, onChangeName }: Props) {
     const response = await fetch("/api/messages", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, text })
+      body: JSON.stringify({ roomId, username, text })
     });
 
     if (!response.ok) {
@@ -99,20 +116,40 @@ export default function ChatWindow({ username, onChangeName }: Props) {
           <div className="min-w-0">
             <h1 className="truncate text-lg font-bold text-slate-950">Friend Chat</h1>
             <p className="truncate text-xs font-medium text-slate-500">
-              {status} as {username}
+              {status} in #{roomId} as {username}
             </p>
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={onChangeName}
-          aria-label="Change username"
-          title="Change username"
-          className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
-        >
-          <Settings size={18} aria-hidden="true" />
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={onChangeRoom}
+            aria-label="Change room"
+            title="Change room"
+            className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
+          >
+            <Hash size={18} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={onChangeName}
+            aria-label="Change username"
+            title="Change username"
+            className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
+          >
+            <Settings size={18} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={onLogout}
+            aria-label="Logout"
+            title="Logout"
+            className="grid h-10 w-10 place-items-center rounded-xl border border-rose-200 text-rose-600 transition hover:bg-rose-50"
+          >
+            <LogOut size={18} aria-hidden="true" />
+          </button>
+        </div>
       </header>
 
       <section className="flex-1 overflow-y-auto bg-[linear-gradient(180deg,#f8fafc_0%,#ecfeff_100%)] px-4 py-5 sm:px-6">

@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import {
-  CHAT_CHANNEL,
+  getChatChannel,
   MAX_MESSAGE_LENGTH,
   MESSAGE_HISTORY_LIMIT,
+  normalizeRoomId,
   NEW_MESSAGE_EVENT
 } from "@/lib/constants";
 import { hasAccessSession } from "@/lib/auth";
@@ -10,9 +11,16 @@ import { pusherServer } from "@/lib/pusher";
 import { getSupabaseServer, isSupabaseConfigured, mapMessageRow } from "@/lib/supabase";
 import type { Message, SendMessagePayload } from "@/lib/types";
 
-export async function GET() {
+export async function GET(req: Request) {
   if (!(await hasAccessSession())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(req.url);
+  const roomId = normalizeRoomId(searchParams.get("roomId") || "");
+
+  if (!roomId) {
+    return NextResponse.json({ error: "Missing room" }, { status: 400 });
   }
 
   if (!isSupabaseConfigured()) {
@@ -23,7 +31,8 @@ export async function GET() {
     const supabase = getSupabaseServer();
     const { data, error } = await supabase
       .from("messages")
-      .select("id, username, text, created_at")
+      .select("id, room_id, username, text, created_at")
+      .eq("room_id", roomId)
       .order("created_at", { ascending: false })
       .limit(MESSAGE_HISTORY_LIMIT);
 
@@ -48,10 +57,11 @@ export async function POST(req: Request) {
 
   try {
     const body = (await req.json()) as SendMessagePayload;
+    const roomId = normalizeRoomId(body.roomId || "");
     const username = body.username?.trim();
     const text = body.text?.trim();
 
-    if (!username || !text) {
+    if (!roomId || !username || !text) {
       return NextResponse.json({ error: "Missing fields" }, { status: 400 });
     }
 
@@ -68,8 +78,8 @@ export async function POST(req: Request) {
       const supabase = getSupabaseServer();
       const { data, error } = await supabase
         .from("messages")
-        .insert({ username, text })
-        .select("id, username, text, created_at")
+        .insert({ room_id: roomId, username, text })
+        .select("id, room_id, username, text, created_at")
         .single();
 
       if (error || !data) {
@@ -81,13 +91,14 @@ export async function POST(req: Request) {
     } else {
       message = {
         id: crypto.randomUUID(),
+        roomId,
         username,
         text,
         timestamp: new Date().toISOString()
       };
     }
 
-    await pusherServer.trigger(CHAT_CHANNEL, NEW_MESSAGE_EVENT, message);
+    await pusherServer.trigger(getChatChannel(roomId), NEW_MESSAGE_EVENT, message);
 
     return NextResponse.json({ success: true, message });
   } catch (error) {
