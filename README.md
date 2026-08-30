@@ -78,7 +78,7 @@ The app saves messages through `/api/messages` before broadcasting them with Pus
 Recommended production access variables:
 
 ```env
-CHAT_ACCESS_CODE=irtash123_123
+CHAT_ACCESS_CODE=#######
 CHAT_SESSION_SECRET=use_a_long_random_secret
 ```
 
